@@ -10,7 +10,15 @@ from matplotlib import font_manager as fm
 
 matplotlib.use('Agg')  # 使用非交互式后端
 # 设置中文字体
-font_path = "C:\\Users\\77139\\AppData\\Local\\Microsoft\\Windows\\Fonts\\SourceHanSansSC-Regular.otf"
+def find_font(font_name):
+    for font in fm.findSystemFonts(fontpaths=None, fontext='ttf'):
+        if font_name in Path(font).name:
+            return font
+    return None
+
+font_path = find_font("楷体_GB2312")  # 自动查找字体
+if font_path is None:
+    raise FileNotFoundError("未找到 '楷体_GB2312' 字体，请检查系统是否安装该字体")
 my_font = fm.FontProperties(fname=font_path)
 plt.rcParams["font.family"] = my_font.get_name()
 

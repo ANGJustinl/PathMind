@@ -1,9 +1,11 @@
 # 基本依赖
 fastapi
-uvicorn
 gradio
 pydantic
+pydantic_settings
 python-dotenv
+sqlalchemy
+zhipuai
 
 # 网络和数据处理
 httpx
@@ -11,10 +13,6 @@ aiohttp
 asyncio
 numpy
 pandas
-
-# 日志和调试
-logging
-traceback-with-variables
 
 # 其他工具
 python-multipart
