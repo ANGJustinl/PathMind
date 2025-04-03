@@ -64,6 +64,11 @@ class PathEnrollment(Base):
     # 详细进度记录
     content_progress = Column(JSON)
     
+    # 学习时间记录
+    total_study_time = Column(Float, default=0.0)  # 总学习时长(小时)
+    study_sessions = Column(JSON, default=list)  # 学习会话记录 [{start_time, end_time, duration}]
+    content_study_time = Column(JSON, default=dict)  # 每个内容的学习时间记录 {content_id: duration}
+    
     enrolled_at = Column(DateTime(timezone=True), server_default=func.now())
     completed_at = Column(DateTime(timezone=True))
     last_activity_at = Column(DateTime(timezone=True))

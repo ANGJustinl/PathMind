@@ -260,7 +260,7 @@ async def update_path_progress(
     user_id: int = Query(..., description="用户ID"),
     db: Session = Depends(get_db)
 ):
-    """更新学习路径进度"""
+    """更新学习路径进度和学习时间"""
     try:
         # 检查注册记录是否存在
         enrollment = (
@@ -278,9 +278,12 @@ async def update_path_progress(
                 detail=f"未找到用户ID {user_id} 在路径ID {path_id} 上的注册记录"
             )
         
-        # 获取内容ID和进度
+        # 获取内容ID、进度和学习时间数据
         content_id = progress_data.get("content_id")
         progress = progress_data.get("progress", 0)
+        study_time = progress_data.get("study_time", 0)  # 本次学习时长(分钟)
+        session_start = progress_data.get("session_start")  # ISO格式时间字符串
+        session_end = progress_data.get("session_end")  # ISO格式时间字符串
         
         if content_id:
             # 检查内容是否存在
@@ -293,10 +296,34 @@ async def update_path_progress(
             content_progress[str(content_id)] = progress
             enrollment.content_progress = content_progress
             
+            # 更新学习时间记录
+            if study_time > 0:
+                # 更新内容学习时间
+                content_study_time = enrollment.content_study_time or {}
+                content_study_time[str(content_id)] = content_study_time.get(str(content_id), 0) + study_time
+                enrollment.content_study_time = content_study_time
+                
+                # 更新总学习时长(转换为小时)
+                enrollment.total_study_time = enrollment.total_study_time + (study_time / 60)
+                
+                # 添加学习会话记录
+                if session_start and session_end:
+                    study_sessions = enrollment.study_sessions or []
+                    study_sessions.append({
+                        "start_time": session_start,
+                        "end_time": session_end,
+                        "duration": study_time,
+                        "content_id": content_id
+                    })
+                    enrollment.study_sessions = study_sessions
+            
             # 重新计算总体进度
             if path_id in enrollment.content_progress:
                 total_progress = sum(enrollment.content_progress.values()) / len(enrollment.content_progress)
                 enrollment.progress = min(100, total_progress)
+            
+            # 更新最后活动时间
+            enrollment.last_activity_at = func.now()
             
             db.commit()
             db.refresh(enrollment)
@@ -307,6 +334,8 @@ async def update_path_progress(
             "path_id": enrollment.path_id,
             "progress": enrollment.progress,
             "content_progress": enrollment.content_progress or {},
+            "total_study_time": round(enrollment.total_study_time, 2),  # 返回学习总时长(小时)
+            "content_study_time": enrollment.content_study_time or {},
             "last_activity_at": enrollment.last_activity_at
         }
     except HTTPException as e:
