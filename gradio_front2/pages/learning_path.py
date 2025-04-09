@@ -62,6 +62,17 @@ def create_learning_path_tab(api_service, user_id):
             with gr.Row(visible=False) as video_container:
                 with gr.Column(scale=1):
                     video_list = gr.HTML("加载视频列表中...")
+                    # 学习状态和时间显示
+                    with gr.Group():
+                        study_status = gr.HTML("""
+                        <div class="study-status" style="margin-top: 15px; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                            <p style="margin: 0; font-size: 14px;">学习状态: <span id="study-state">未开始</span></p>
+                            <p style="margin: 5px 0 0; font-size: 14px;">本次学习时长: <span id="current-duration">0</span>分钟</p>
+                            <p style="margin: 5px 0 0; font-size: 14px;">累计学习时长: <span id="total-duration">0</span>小时</p>
+                        </div>
+                        """)
+                        study_control = gr.Button("开始学习", variant="primary")
+
                 with gr.Column(scale=2):
                     video_embed = gr.HTML("""
                     <div style="padding: 20px; border: 1px solid #ddd; border-radius: 5px; background-color: #f9f9f9; height: 315px; display: flex; align-items: center; justify-content: center;">
@@ -69,6 +80,54 @@ def create_learning_path_tab(api_service, user_id):
                             从左侧选择视频进行观看
                         </p>
                     </div>
+                    <script>
+                    let studyStartTime = null;
+                    let currentContentId = null;
+                    let studyTimer = null;
+                    
+                    function updateStudyDuration() {
+                        if (studyStartTime) {
+                            const duration = Math.floor((Date.now() - studyStartTime) / 60000); // 转换为分钟
+                            document.getElementById('current-duration').textContent = duration;
+                        }
+                    }
+                    
+                    function startStudy() {
+                        studyStartTime = Date.now();
+                        document.getElementById('study-state').textContent = '学习中';
+                        document.getElementById('study-control').textContent = '结束学习';
+                        studyTimer = setInterval(updateStudyDuration, 60000); // 每分钟更新一次
+                    }
+                    
+                    function endStudy() {
+                        if (studyStartTime) {
+                            const endTime = Date.now();
+                            const duration = Math.floor((endTime - studyStartTime) / 60000);
+                            
+                            // 将学习记录发送到后端
+                            if (currentContentId) {
+                                fetch('/api/v1/learning-paths/' + pathId + '/progress', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                        user_id: userId,
+                                        content_id: currentContentId,
+                                        study_time: duration,
+                                        session_start: new Date(studyStartTime).toISOString(),
+                                        session_end: new Date(endTime).toISOString()
+                                    })
+                                });
+                            }
+                            
+                            clearInterval(studyTimer);
+                            studyStartTime = null;
+                            document.getElementById('study-state').textContent = '已暂停';
+                            document.getElementById('study-control').textContent = '开始学习';
+                        }
+                    }
+                    
+                    window.addEventListener('beforeunload', endStudy);
+                    </script>
                     """)
 
     # 根据所选主题领域更新具体路径选项
@@ -716,6 +775,34 @@ def create_learning_path_tab(api_service, user_id):
                 ]
             }
 
+    # 处理学习控制按钮事件
+    def toggle_study_session():
+        """切换学习会话状态"""
+        js = """
+        async () => {
+            let button = document.getElementById('study-control');
+            let state = document.getElementById('study-state');
+            if (button.textContent === '开始学习') {
+                startStudy();
+                return '结束学习';
+            } else {
+                endStudy();
+                return '开始学习';
+            }
+        }
+        """
+        return js
+
+    # 更新学习时间显示
+    def update_study_duration(last_total_time):
+        """更新累计学习时长"""
+        js = f"""
+        () => {{
+            document.getElementById('total-duration').textContent = '{last_total_time}';
+        }}
+        """
+        return js
+
     # 绑定事件处理函数
     subject_area.change(
         fn=update_specific_paths,
@@ -745,5 +832,33 @@ def create_learning_path_tab(api_service, user_id):
             video_embed
         ]
     )
+    
+    # 绑定学习控制按钮事件
+    study_control.click(
+        fn=lambda: "结束学习" if study_control.value == "开始学习" else "开始学习",
+        outputs=study_control,
+        _js=toggle_study_session()
+    )
+    
+    # 初始化全局变量
+    gr.HTML(f"""
+    <script>
+    // 全局变量
+    window.userId = {user_id};
+    window.pathId = null;
+    window.currentContentId = null;
+    window.totalStudyTime = 0;
+    
+    // 监听路径和内容选择事件
+    document.addEventListener('DOMContentLoaded', () => {{
+        const pathSelect = document.querySelector('[data-testid="specific_path"]');
+        if (pathSelect) {{
+            pathSelect.addEventListener('change', (e) => {{
+                window.pathId = e.target.value;
+            }});
+        }}
+    }});
+    </script>
+    """)
     
     return path_container
