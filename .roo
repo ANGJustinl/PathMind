@@ -1,0 +1,18 @@
+{
+  "project": {
+    "name": "rooed",
+    "version": "0.1.0",
+    "description": "A Python project using Roo configuration",
+    "python": {
+      "version": "3.11",
+      "package_manager": "uv"
+    }
+  },
+  "env": {
+    "shell": "powershell",
+    "timezone": "Asia/Shanghai",
+    "encoding": "utf-8"
+  },
+  "default_mode": "code",
+  "language": "zh-CN"
+}
